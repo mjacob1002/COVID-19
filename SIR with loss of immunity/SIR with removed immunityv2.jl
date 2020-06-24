@@ -4,7 +4,8 @@ using Plots
 #1/v is the typical time it takes to lose immunity
 function f(β, γ, u, t, v)
     S, I, R = u
-    return [-β*S*I + v*R,β*S*I-γ*I,γ*I-v*R]
+    N = S + I + R
+    return [-β*S*I/N + v*R,β*S*I-γ*I,γ*I-v*R]
 end
 # eventually will make beta a function of other variables for "the dance"
 function beta()
@@ -41,7 +42,7 @@ function demo()
     R0 = 0
     U_0 = [S0, I0, R0]
     #parameters
-    Β = 10.0/(40*8*4) # time frame of 1 day
+    Β = 10.0/(40*8*4) # time frame of 1 day; P(infected and meet in pair)
     γ = 3.0/15
     dt = 1/24 # 1 hour
     D = 1200 #Numbers of days being simulated
