@@ -1,29 +1,44 @@
-# creates a 3 by 3 transition matrix for the standard DTMC SIR model
-function trans_matrix(mu_SI, mu_IR)
-    # S, I, R by S, I, R
-    # p - transition matrix
-    p = zeros(Float64, 3, 3)
-    p[1,1] = 1-mu_SI
-    p[1,2] = mu_SI
-    p[3,3] = 1
-    p[2,2] = 1 - mu_IR
-    p[2,3] = mu_IR
-    return p
+using Random
+# adds the randomness required in markov chain
+function p_sim(μ)
+    x = rand()
+    if 0<=x<=μ
+        return true
+    else
+        return false
+    end
 end
 
 # time is in days, updates the S, I, R every discrete day
-function update_SIR(S0, I0, R0, prob, tm)
+function update_SIR(S0, I0, R0, mu_SI, mu_IR, tm)
+    # create the matrix
     S = zeros(Float64, tm)
     I = zeros(Float64, tm)
     R = zeros(Float64, tm)
     t = zeros(Int64, tm)
-    S[1] , I[1], R[1], t[1] = S0, I0, R0, 1
+    # initialize the values of the array
+    S[1] , I[1], R[1], t[1] = S0, I0, R0, 0
 
     for i in 2:tm
-        t[i] = i
-        S[i] = S[i-1] * prob[1,1]
-        I[i] = I[i-1] + prob[1,2]*S[i-1] - prob[2,3] * I[i-1]
-        R[i] = R[i-1] + prob[2,3]*I[i-1]
+        t[i] = i-1
+        # keeps track on the change from S -> I, I -> R
+        S_I = 0
+        I_R = 0
+        for j in 1:S[i-1]
+            if(p_sim(mu_SI) == true)
+                S_I +=1
+            end
+        end
+        # adjusts the next S value for the next discrete day
+        S[i] = S[i-1] - S_I
+        for j in 1:I[i-1]
+            if(p_sim(mu_IR) == true)
+                I_R +=1
+            end
+        end
+        # adjusts the I, R values for the next discrete day
+        I[i] = I[i-1] + S_I - I_R
+        R[i] = R[i-1] + I_R
     end
     return S, I, R, t
 end
@@ -33,9 +48,8 @@ I0 = 1
 R0 = 0
 mu_SI = .10
 mu_IR = .2
-days = 30
-m = trans_matrix(mu_SI, mu_IR)
-S, I, R, t = update_SIR(S0, I0, R0, m, days)
+days = 31
+S, I, R, t = update_SIR(S0, I0, R0, mu_SI, mu_IR, days)
 
 
 using Plots
