@@ -71,6 +71,7 @@ function update_SIR(time, mu_IR)
 end
 
 #accounts for the constantly increasing hospital limit as function of time
+#currently a linear function, will experiment with other functions
 function hosp_limit(C_0, t)
     c = C0 + .00075*t
     return c
