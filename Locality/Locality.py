@@ -78,7 +78,7 @@ def commute(x: Locality, y: Locality, prop: float()):
         #adjust the N values after the commute
         x.N-=1
         y.N +=1 
- 
+# uses the commute method to commute people from x -> y as well as y -> x 
 def state_change(x: Locality, y: Locality):
     # randomizes the proportion of people coming from one locality to another
     a = random.random() * .08 + random.random()*.04
