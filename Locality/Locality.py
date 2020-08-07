@@ -63,7 +63,7 @@ class Locality:
     this function will be run before every state evaluation
     
     """
-def commute(x: Locality, y: Locality, prop: float()):
+def commute(x: Locality, y: Locality, prop: float):
         # runs through the loop a certain amount of times
         for i in range(int(prop*x.N)):
             if(x.psim() == 0):
