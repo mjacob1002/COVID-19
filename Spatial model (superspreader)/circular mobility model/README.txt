@@ -1,2 +1,2 @@
-Circular mobility model with plotting fixed (10/06/2020)
-TODO: add infection events
+Circular mobility model (10/08/2020)
+TODO: add hospital capacity & vaccination
