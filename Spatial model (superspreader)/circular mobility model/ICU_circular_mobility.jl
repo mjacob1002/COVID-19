@@ -6,8 +6,8 @@ using CoordinateTransformations, StaticArrays
 #Parameters
 N = 1000 #150-900
 loc_l = 100.0 #m
-r0 = 2.0 #???
-w0 = 1.0
+r0 = 2.0 #infection radius
+w0 = 1.0 #infection probability when dist=0.0 from an infected individual
 λ = 0.3 #ratio of superspreaders
 γ = 0.01 #rate of recovery and death
 ζ = .5 #E-->I
