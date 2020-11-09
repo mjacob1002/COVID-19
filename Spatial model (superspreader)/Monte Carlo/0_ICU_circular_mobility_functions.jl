@@ -3,37 +3,54 @@ using Plots
 using CoordinateTransformations, StaticArrays
 
 function generate_random_event(p)
+    #=
+    function to generate a random event using a random number generator
+    @param p: the probability of an event
+    @return: 1 if the event happens, and 0 if the event does not happen
+    =#
     @assert p >= 0 && p<=1
     u = rand(Float64)
-    if u >= 0 && u < p #u:[0,p)-->event 1
+    if u >= 0 && u < p #u:[0,p)-->event happens with probability p
         return 1
-    else #u: [p,1)-->event 2
+        else #u: [p,1)-->event does not happen with probability 1-p
         return 0
     end
 end
 
 function dist(p1, p2)
-    x1 = p1[1]
+    #=
+    function to get the distance between two people
+    @param p1: the first person as an array of [x1, y1, ...]
+    @param p1: the second person as an array of [x2, y2, ...]
+    @return: the distance between p1 and p2
+    =#
+    x1 = p1[1] #get the coordinates for p1 and p2
     x2 = p2[1]
     y1 = p1[2]
     y2 = p2[2]
-    return (((x1-x2)^2) + ((y1-y2)^2))^0.5
+    return (((x1-x2)^2) + ((y1-y2)^2))^0.5 #distance 2d
 end
 
 function generate_infection_prob(r, α)
-    #strong infectiousness model, w(r)=0 when r>r0
-    if model == "strong infectiousness"
+    #=
+    Function to get the infection probability based on the two models in Fujie&Odagaki (2007)
+    @param r: distance between the two people
+    @param α: power param for the strong infectiousness model (if hub model, α=2.0)
+    @return: infection probability calculated based on the infection probability in Fujie&Odagaki (2007)
+    =#
+    if model == "strong infectiousness" #strong infectiousness model, w(r)=0 when r>r0
         if r <= r0
             w = w0 * ((1-(r/r0))^α)
         elseif r>r0
             w = 0
         end
-    elseif model == "hub"
-        if α == 2 #normal
+    elseif model == "hub" #hub model, α=2.0
+        #for a detailed description of this implementation, see Fujie&Odagaki (2007) pp. 845
+        if α == 2 #normal (α as a marker for normal spreader vs ss here, and α is changed to 2 at line 52 for the hub model)
             rn = r0
         elseif α == 0 #ss
             rn = (6.0^0.5)*r0
-            α = 2
+            α = 2 #set α to 2
         end
         if r <= rn
             w = w0 * ((1-(r/rn))^α)
@@ -44,17 +61,15 @@ function generate_infection_prob(r, α)
     return w
 end
 
-function circleShape(a, b, r)
-    #https://discourse.julialang.org/t/plot-a-circle-with-a-given-radius-with-plots-jl/23295/15
-    gr()
-    θ = LinRange(0, 2*π, 500)
-    a .+ r*sin.(θ), b .+ r*cos.(θ)
-end
-
 function parse_pop(pop)
-    S = Set(); E = Set(); L = Set(); ICU = Set(); I = Set(); R = Set()
-    for i in 1:N
-        if pop[i][4] == "S"
+    #=
+    Function to parse an initialized population into SIR sets (or with addition sets like E, L, and ICU)
+    @param pop: a population (an array of individual arrays) to be parsed
+    @return: S, E, L, ICU, I, R sets containing their corresponding individuals
+    =#
+    S = Set(); E = Set(); L = Set(); ICU = Set(); I = Set(); R = Set() #initialize sets
+    for i in 1:N #for every individual in the population
+        if pop[i][4] == "S" #parse into sets following the set marker (pop[i][4])
             push!(S, pop[i])
         elseif pop[i][4] == "E"
             push!(E, pop[i])
@@ -71,48 +86,69 @@ function parse_pop(pop)
     return S, E, L, ICU, I, R
 end
 
-function initialize_pop(loc_l, λ)
+function initialize_pop(loc_l, λ, N)
+    #=
+    Function to initialze a simulated population
+    @param loc_l: size for the parameter space
+    @param λ: superspreader ratio
+    @param N: population size
+    @return: an array of individuals representing the population
+    =#
     @assert N>0
     pop = Any[] #might be faster to use a hash map
-    #pss = generate_random_event(λ)
-    pss = generate_random_event(1.0)
+    #pss = generate_random_event(λ) #no assumptions about whether patient0 is a superspreader or not
+    pss = generate_random_event(1.0) #assume patient0 is a superspreader
     if pss == 1 #ss
-        p0 = [loc_l/2, 0, "ss", "I"]
+        p0 = [loc_l/2, 0, "ss", "I"] #an array representing an individual, can be considered a person object
     elseif pss == 0 #normal
         p0 = [loc_l/2, 0, "n", "I"]
     end
-    push!(pop, p0)
+    push!(pop, p0) # add patient0 to population
 
-    #generate the rest of the pop and their initial locations
+    #generate the rest of the pop (susceptible)
     for i = 1:(N-1)
-        x = rand(Float64)*loc_l
+        x = rand(Float64)*loc_l #x and y coordinates are randomly generated within the parameter space
         y = rand(Float64)*loc_l
-        pss = generate_random_event(λ)
+        pss = generate_random_event(λ)#determine if this person is ss or not
         if pss ==1 #ss
-            p = [x, y, "ss", "S"] #Susceptible
+            p = [x, y, "ss", "S"] #mark as susceptible
         else #normal
-            p = [x, y, "n", "S"] #Susceptible
+            p = [x, y, "n", "S"] 
         end
-        push!(pop, p)
+        push!(pop, p) #add person generated to population
     end
     return pop
 end
 
 function generate_random_radii(pop, μ, σ, N)
-    #polling radius from a trcucated normal distribution
-    #TODO: can use different distributions, or dist estimated from data
-    truncated_normal = truncated(Normal(μ, σ), 0.0, Inf) #includive
+    #=
+    Function to generate random radii for the periodic pattern (circular movement in parameter space)
+    The radii are pulled from a trcucated normal distribution.
+    @TODO: can use different distributions, or dist estimated from data
+    @param pop: the population that the random radii are generated for 
+    @param μ: mean of the normal distribution
+    @param σ: standard deviation of the normal distribution
+    @param N: population size
+    @return: the population with radii generated for the circular movement pattern
+    =#
+    truncated_normal = truncated(Normal(μ, σ), 0.0, Inf) #inclusive
     radii = rand(truncated_normal, N)
     for i in 1:N
-        push!(pop[i], radii[i])
+        push!(pop[i], radii[i]) #add the radius to each person in the population
     end
     return pop
 end
 
 function generate_random_vector(pop, N)
-    vectors = rand(Uniform(0, 2π), N)#[0, 2π]
+    #=
+    Function to generate random vectors for the periodic pattern (i.e. determining the starting location of the person on the circle)
+    @param pop: the population that the vectors are generated for
+    @param N: population size
+    @return: the population with vectors/starting locations generated for the circular movement pattern
+    =#
+    vectors = rand(Uniform(0, 2π), N)#pulling uniformly from [0, 2π], each angle represents a starting location on the circle (aka a vector)
     for i in 1:N
-        push!(pop[i], vectors[i])
+        push!(pop[i], vectors[i])#add the vector to each person in the population
     end
     return pop
 end
