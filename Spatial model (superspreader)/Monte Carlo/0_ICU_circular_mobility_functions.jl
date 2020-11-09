@@ -153,9 +153,15 @@ function generate_random_vector(pop, N)
     return pop
 end
 
-function genetate_circular_path(pop) #tested: (radius, vector)-->(a,b)
+function genetate_circular_path(pop) 
+    #=
+    Function to get the center of the circular path: (radius, vector)-->(a,b)
+    @param pop: a population with the radii and vectors generated
+    @return: the population with the center of the circles stored in each individual array
+    =#
     for i in 1:N
-        p = pop[i]; x0 = p[1]; y0 = p[2]; θ = p[5]; r = p[6]
+        p = pop[i]; x0 = p[1]; y0 = p[2]; θ = p[5]; r = p[6] #get parameters
+        #θ is from generate_random_vector and is treated as the angle between the y axis and the line connecting (x0, y0) and (a,b)
         dx = r * sin(θ)
         dy = r * cos(θ)
         #(a, b) is the center of the circular path
@@ -167,27 +173,32 @@ function genetate_circular_path(pop) #tested: (radius, vector)-->(a,b)
     return pop
 end
 
-function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousness.jl
-    Infectious = union(I, L)
-    #print(length(Infectious))
-    for p in enumerate(Infectious)
-        for q in enumerate(S)
-            r = dist(p[2], q[2])
-            if p[2][3]=="ss"; α = 0 #ss
+function infect(S, E, L, ICU, I, R, N) 
+    #=
+    Function to update the population with infection, recovery, and other events in the compartmental model
+    @params: sets to be updated
+    @return: sets after the update
+    =#
+    Infectious = union(I, L) #All infectious individuals = I + L
+    #S-->E (an exposure event)
+    for p in enumerate(Infectious) #for every infectious person
+        for q in enumerate(S) #see if each susceptible person is exposed
+            r = dist(p[2], q[2]) #get the distance between the two people
+            if p[2][3]=="ss"; α = 0 #ss #FIXME: use a better marker
             else; α = 2 #normal
             end
-            w = generate_infection_prob(r, α)
+            w = generate_infection_prob(r, α) #get the infection probability (exposure probability in this case)
             event = generate_random_event(w) #1 = infection, 0 = nothing
             if event == 1 #infection
                 curr = q[2]
-                delete!(S, curr)
-                push!(E, curr)
+                delete!(S, curr) #the susceptible person is exposed and removed from S
+                push!(E, curr) #and added to E
             end #else: nothing
         end
     end
 
-    for p in enumerate(E) #E-->L
-        event = generate_random_event(ρ)
+    for p in enumerate(E) #E-->L (infection that will go to the ICU)
+        event = generate_random_event(ρ*ζ) #probablity = probability of going to the ICU * infection probability
         if event == 1
             curr = p[2]
             delete!(E, curr)
@@ -195,8 +206,8 @@ function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousne
         end
     end
 
-    for p in enumerate(E) #E-->I
-        event = generate_random_event(ζ)
+    for p in enumerate(E) #E-->I (infection that won't go to the ICU)
+        event = generate_random_event((1-ρ)*ζ) #probablity = probability of not going to the ICU * infection probability
         if event == 1
             curr = p[2]
             delete!(E, curr)
@@ -204,7 +215,7 @@ function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousne
         end
     end
 
-    for p in enumerate(L) #L-->ICU
+    for p in enumerate(L) #L-->ICU (ICU admission)
         event = generate_random_event(η)
         if event == 1
             curr = p[2]
@@ -213,7 +224,7 @@ function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousne
         end
     end
 
-    for p in enumerate(ICU) #ICU-->R
+    for p in enumerate(ICU) #ICU-->R (ICU recovery/death)
         event = generate_random_event(κ)
         if event == 1
             curr = p[2]
@@ -222,8 +233,7 @@ function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousne
         end
     end
 
-    #recovery
-    for p in enumerate(I) #I-->R
+    for p in enumerate(I) #I-->R (recovery/death)
         event = generate_random_event(γ)
         if event == 1 #recover/death
             curr = p[2]
@@ -240,72 +250,86 @@ function infect(S, E, L, ICU, I, R, N) #modified based on ss_strong_infectiousne
     return S, E, L, ICU, I, R
 end
 
-function move(S_vals, I_vals, R_vals, E_vals, L_vals, ICU_vals, S, E, L, ICU, I, R, N) #move 1 entire circle for now #FIXME
+function move(S_vals, I_vals, R_vals, E_vals, L_vals, ICU_vals, S, E, L, ICU, I, R, N) 
+    #=
+    Function for all sets to be updated and moved for 1 entire cycle in the parameter space
+    @params S_vals, I_vals, R_vals, E_vals, L_vals, ICU_vals: output vectors to store set sizes
+    @params S, E, L, ICU, I, R, N: sets to be moved
+    =#
     for t in 1:time_steps #1 period/round of movement e.g. 1 day, 1 month etc.
-        S, E, L, ICU, I, R = infect(S, E, L, ICU, I, R, N) #***
-        #global counter = counter + 1
-        #visualize(counter)
+        S, E, L, ICU, I, R = infect(S, E, L, ICU, I, R, N) #update sets (e.g. exposure, infection etc.)
 
         S = move_set(S)
         E = move_set(E)
         L = move_set(L)
-        ICU = move_set_ICU(ICU)
+        ICU = move_set_ICU(ICU) #ICU movement is different
         I = move_set(I)
         R = move_set(R)
 
+        #update output vectors
         push!(S_vals, length(S)); push!(I_vals, length(I)); push!(R_vals, length(R))
         push!(E_vals, length(E)); push!(L_vals, length(L)); push!(ICU_vals, length(ICU))
 
     end
-
     return S_vals, I_vals, R_vals, E_vals, L_vals, ICU_vals, S, E, L, ICU, I, R
 end
 
 function move_set(set)
-    set_new = deepcopy(set)
-    for i in enumerate(set)
+    #=
+    Function to move individuals in a set (S, I, R etc.) in the parameter space following the circular paths
+    @param set: the set to be moved
+    @return: the set with new locations stored
+    =#
+    set_new = deepcopy(set) #create an independent copy of the set
+    for i in enumerate(set) # for every individual
         p = i[2]
-        a = p[7]; b = p[8]; r = p[6]; x0 = p[1]; y0 = p[2] #consider the underlying location for boundary cases
-        x_prime = x0 - a; y_prime = y0 - b
-
-        xy = SVector(x_prime, y_prime)
-        rθ = p_from_c(xy)
-        @assert rθ.r ≈ r
+        a = p[7]; b = p[8]; r = p[6]; x0 = p[1]; y0 = p[2] #get the parameters
+        
+        x_prime = x0 - a; y_prime = y0 - b #treat the center of the circle as the origin for now (i.e. move the origin to the center of the circle, will convert back later)
+        xy = SVector(x_prime, y_prime) #create a vector
+        rθ = p_from_c(xy) #convert xy to polar
+        @assert rθ.r ≈ r #double check conversion
         θ0 = rθ.θ
 
-        rθ_new = Polar(r, θ0 + delta)
-        xy_new = c_from_p(rθ_new)
-        x = xy_new[1] + a; y = xy_new[2] + b
+        rθ_new = Polar(r, θ0 + delta) #update polar angle with the increment value for circluar movement
+        xy_new = c_from_p(rθ_new) #convert polar (r,θ0 + delta) to Cartesian (x, y), i.e. the new (x, y) after 1 circular movement step
+        x = xy_new[1] + a; y = xy_new[2] + b #back conversion using (a,b), see line 288
 
         #update x, y in set
         delete!(set_new, p)
-        #println(length(set))
-        p[1] = x; p[2] = y #underlying location
-        #consider boundary cases
-        if length(p)>8; pop!(p); pop!(p); end
+        p[1] = x; p[2] = y #set underlying location
+        if length(p)>8; pop!(p); pop!(p); end #FIXME: remove previous visualized location
+        #FIXME: consider boundary cases and (underlying location vs visualized location)
+        #Boundary cases are handled here
         if x < 0.0; x = 0.0
         elseif x > loc_l; x = loc_l; end
         if y < 0; y = 0.0
         elseif y > loc_l; y = loc_l; end
-
-        push!(p, x); push!(p, y) #visualized location (for boundary cases)
-        push!(set_new, p)
+        
+        push!(p, x); push!(p, y) #add visualized location (for boundary cases)
+        push!(set_new, p) # add the updated person array back to the set
     end
     return set_new
 end
 
 function move_set_ICU(ICU)
+    #=
+    Function to have individuals in the ICU group stay at the hospital in the parameter space
+    Note that the underlying locations of the ICU patients are not changed, which means they would return to the admitted location after recovery
+    @param set: the set to be moved
+    @return: the set with new locations stored
+    =#
     set_new = deepcopy(ICU)
-    for i in enumerate(ICU)
+    for i in enumerate(ICU) #for every person in the ICU
         p = i[2]
-        a = p[7]; b = p[8]; r = p[6]; x0 = p[1]; y0 = p[2] #consider the underlying location for boundary cases
+        a = p[7]; b = p[8]; r = p[6]; x0 = p[1]; y0 = p[2] #get parameters
         delete!(set_new, p)
         if length(p)>8
-            p[9]= hospital_x; p[10]=hospital_y
+            p[9]= hospital_x; p[10]=hospital_y #update visualized location
         else
-            push!(p, hospital_x); push!(p, hospital_y)
+            push!(p, hospital_x); push!(p, hospital_y) #update visualized location
         end
-        push!(set_new, p)
+        push!(set_new, p) # add the updated person array back to the set
     end
     return set_new
 end
