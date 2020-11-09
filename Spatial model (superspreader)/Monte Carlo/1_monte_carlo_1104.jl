@@ -34,7 +34,7 @@ E_out = Any[]; L_out = Any[]; ICU_out = Any[]
 for a in 1:num_MC_simulations
     @time begin
     println("run# "*string(a))
-    pop = initialize_pop(loc_l, λ)
+    pop = initialize_pop(loc_l, λ, N)
 
     pop = generate_random_vector(pop, N)
     pop = generate_random_radii(pop, μ, σ, N)
