@@ -10,6 +10,7 @@ L = CSV.read(joinpath(Pkg.dir("DataFrames"), "./Monte_Carlo/lamda_1.0/L_df.csv")
 ICU = CSV.read(joinpath(Pkg.dir("DataFrames"), "./Monte_Carlo/lamda_1.0/ICU_df.csv"));
 total_infected = CSV.read(joinpath(Pkg.dir("DataFrames"), "./Monte_Carlo/lamda_1.0/total_infected.csv"));
 
+N = 1000
 num_MC_simulations = 100
 nms = [Symbol("t$i") for i in 1:num_MC_simulations] #an array storing column names for the dataframes
 
@@ -33,8 +34,6 @@ end
 
 #DATAFRAME total_IR
 
-N = 1000
-num_MC_simulations = 100
 nms = [Symbol("t$i") for i in 1:num_MC_simulations]
 IR_max = Any[]
 #find the date for 10%, 20%, 30%, ...
